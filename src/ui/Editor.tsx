@@ -16,20 +16,28 @@ interface Props {
   direction: Direction
   autoFocus: boolean
   onChange: (value: string) => void
+  /** existing tags, for autocompletion */
+  getTags: () => { name: string; count: number }[]
   viewRef: { current: EditorView | null }
 }
 
-export function Editor({ value, revision, direction, autoFocus, onChange, viewRef }: Props) {
+export function Editor({ value, revision, direction, autoFocus, onChange, getTags, viewRef }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
+  const getTagsRef = useRef(getTags)
+  getTagsRef.current = getTags
 
   useEffect(() => {
     const view = new EditorView({
       parent: host.current!,
       state: EditorState.create({
         doc: value,
-        extensions: editorExtensions(direction, (doc) => onChangeRef.current(doc)),
+        extensions: editorExtensions(
+          direction,
+          (doc) => onChangeRef.current(doc),
+          () => getTagsRef.current(),
+        ),
       }),
     })
     viewRef.current = view

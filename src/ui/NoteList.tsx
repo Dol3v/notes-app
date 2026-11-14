@@ -1,8 +1,9 @@
 import { useState } from 'preact/hooks'
-import { formatDate, matchesQuery, noteSnippet, noteTitle, timeAgo } from '../lib/notes'
-import { type TagNode, buildTagTree, hasTag } from '../lib/tags'
+import { formatDate, noteSnippet, noteTitle, timeAgo } from '../lib/notes'
+import { hasTag, matchesSearch, noteTags } from '../lib/tags'
 import type { Session } from '../session'
-import { IconLock, IconPlus, IconSearch, IconSettings, IconSync } from './icons'
+import { IconLock, IconPin, IconPlus, IconSearch, IconSettings, IconSync } from './icons'
+import { TagTree } from './TagTree'
 
 interface Props {
   session: Session
@@ -12,14 +13,18 @@ interface Props {
   onSettings: () => void
   tag: string | null
   onTag: (tag: string | null) => void
+  /** desktop: the tag tree lives in its own sidebar — the # button toggles that instead */
+  tagPane?: { open: boolean; toggle: () => void }
 }
 
-export function NoteList({ session, activeId, onOpen, onNew, onSettings, tag, onTag }: Props) {
+export function NoteList({ session, activeId, onOpen, onNew, onSettings, tag, onTag, tagPane }: Props) {
   const [query, setQuery] = useState('')
-  const [tagsOpen, setTagsOpen] = useState(false)
-  const all = session.notes
-  const notes = all.filter((n) => matchesQuery(n, query) && (!tag || hasTag(n, tag)))
-  const tree = tagsOpen ? buildTagTree(all) : []
+  const [inlineOpen, setInlineOpen] = useState(false)
+  const tagsOpen = tagPane ? tagPane.open : inlineOpen
+  const toggleTags = tagPane ? tagPane.toggle : () => setInlineOpen(!inlineOpen)
+  const notes = session.notes.filter((n) => matchesSearch(n, query) && (!tag || hasTag(n, tag)))
+  const pinnedCount = notes.filter((n) => n.pinned).length
+  const sections = pinnedCount > 0 && pinnedCount < notes.length
 
   return (
     <div class="note-list">
@@ -38,44 +43,35 @@ export function NoteList({ session, activeId, onOpen, onNew, onSettings, tag, on
         <label class="search">
           <IconSearch />
           <input
+            id="note-search"
             type="search"
             dir="auto"
-            placeholder="Search · חיפוש"
+            placeholder="Search · חיפוש · #tag"
+            title="Search notes (Ctrl+Shift+F). Use #tag to filter by tag."
             value={query}
             onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setQuery('')
+                ;(e.target as HTMLInputElement).blur()
+              }
+            }}
           />
         </label>
         <button
           class={`icon-btn tags-toggle ${tagsOpen ? 'on' : ''}`}
-          onClick={() => setTagsOpen(!tagsOpen)}
-          aria-label="Tags"
+          onClick={toggleTags}
+          aria-label={tagPane ? (tagsOpen ? 'Hide tag sidebar' : 'Show tag sidebar') : 'Tags'}
           aria-expanded={tagsOpen}
-          title="Tags"
+          title={tagPane ? (tagsOpen ? 'Hide tag sidebar' : 'Show tag sidebar') : 'Tags'}
         >
           #
         </button>
       </div>
 
-      {tagsOpen && (
+      {!tagPane && inlineOpen && (
         <nav class="tag-tree" aria-label="Tags">
-          {tree.length === 0 ? (
-            <p class="subtle small">
-              No tags yet. Write <code>#tag</code> or <code>#parent/child</code> anywhere in a note.
-            </p>
-          ) : (
-            <ul>
-              <li>
-                <button class={`tag-row ${tag === null ? 'active' : ''}`} onClick={() => onTag(null)}>
-                  <span class="tag-twisty" />
-                  <span class="tag-name">All notes</span>
-                  <span class="tag-count">{all.length}</span>
-                </button>
-              </li>
-              {tree.map((n) => (
-                <TagRow key={n.path} node={n} depth={0} active={tag} onTag={onTag} />
-              ))}
-            </ul>
-          )}
+          <TagTree session={session} tag={tag} onTag={onTag} />
         </nav>
       )}
 
@@ -88,10 +84,17 @@ export function NoteList({ session, activeId, onOpen, onNew, onSettings, tag, on
       )}
 
       <ul class="notes">
-        {notes.map((n) => (
+        {notes.map((n, i) => (
           <li key={n.id}>
+            {sections && i === 0 && <div class="list-section">Pinned</div>}
+            {sections && i === pinnedCount && <div class="list-section">Notes</div>}
             <button class={`note-item ${n.id === activeId ? 'active' : ''}`} onClick={() => onOpen(n.id)}>
               <div class="note-item-top">
+                {n.pinned && (
+                  <span class="pin-mark" title="Pinned">
+                    <IconPin filled size={14} />
+                  </span>
+                )}
                 <span class="note-item-title" dir="auto">
                   {noteTitle(n)}
                 </span>
@@ -100,6 +103,7 @@ export function NoteList({ session, activeId, onOpen, onNew, onSettings, tag, on
               <div class="note-item-snippet" dir="auto">
                 {n.conflict && <span class="badge">conflict copy</span>} {noteSnippet(n)}
               </div>
+              <NoteTags tags={noteTags(n)} />
             </button>
           </li>
         ))}
@@ -145,36 +149,18 @@ function SyncBadge({ session, onError }: { session: Session; onError: () => void
   )
 }
 
-function TagRow({ node, depth, active, onTag }: { node: TagNode; depth: number; active: string | null; onTag: (t: string) => void }) {
-  const a = active?.toLowerCase()
-  const p = node.path.toLowerCase()
-  // open the branch that leads to the active tag
-  const [open, setOpen] = useState(!!a && a.startsWith(`${p}/`))
-  const hasKids = node.children.length > 0
+const MAX_CHIPS = 3
+
+function NoteTags({ tags }: { tags: string[] }) {
+  if (!tags.length) return null
   return (
-    <li>
-      <button class={`tag-row ${a === p ? 'active' : ''}`} style={{ paddingInlineStart: `${8 + depth * 16}px` }} onClick={() => onTag(node.path)}>
-        <span
-          class={`tag-twisty ${hasKids ? (open ? 'open' : 'closed') : ''}`}
-          onClick={(e) => {
-            if (!hasKids) return
-            e.stopPropagation()
-            setOpen(!open)
-          }}
-          aria-hidden="true"
-        />
-        <span class="tag-name" dir="auto">
-          {node.name}
+    <div class="note-item-tags">
+      {tags.slice(0, MAX_CHIPS).map((t) => (
+        <span class="tag-mini" dir="auto" key={t}>
+          #{t}
         </span>
-        <span class="tag-count">{node.count}</span>
-      </button>
-      {hasKids && open && (
-        <ul>
-          {node.children.map((c) => (
-            <TagRow key={c.path} node={c} depth={depth + 1} active={active} onTag={onTag} />
-          ))}
-        </ul>
-      )}
-    </li>
+      ))}
+      {tags.length > MAX_CHIPS && <span class="tag-mini more">+{tags.length - MAX_CHIPS}</span>}
+    </div>
   )
 }

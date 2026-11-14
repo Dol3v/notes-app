@@ -103,6 +103,7 @@ function SyncSection({ session }: { session: Session }) {
 
 function AppearanceSection({ session }: { session: Session }) {
   const p = session.prefs
+  const openKey = isMobileDevice() ? 'openMode' : 'desktopOpenMode'
   return (
     <section>
       <h2>Appearance</h2>
@@ -125,8 +126,12 @@ function AppearanceSection({ session }: { session: Session }) {
         />
       </label>
       <label class="setting">
-        <span>Open notes in</span>
-        <select value={p.openMode} onChange={(e) => session.updatePrefs({ openMode: (e.target as HTMLSelectElement).value as 'edit' | 'preview' })}>
+        <span>
+          Open notes in
+          <br />
+          <span class="subtle small">{isMobileDevice() ? 'Setting for phones & tablets' : 'Setting for computers'}</span>
+        </span>
+        <select value={p[openKey]} onChange={(e) => session.updatePrefs({ [openKey]: (e.target as HTMLSelectElement).value as 'edit' | 'preview' })}>
           <option value="preview">Reading view</option>
           <option value="edit">Editor</option>
         </select>

@@ -115,3 +115,84 @@ export function isTagOnlyLine(line: string): boolean {
   const rest = line.replace(tagRegex(), '').trim()
   return rest === '' && tagRegex().test(line)
 }
+
+/**
+ * Split a search query into `#tag` terms and free text. Tag terms match by prefix, so results
+ * narrow while typing: `#wo` → `#work`, `#work/meetings`, …
+ */
+export function parseQuery(query: string): { tags: string[]; text: string } {
+  const tags: string[] = []
+  const text = query
+    .replace(tagRegex(), (whole: string, name: string) => {
+      if (!isTagName(name)) return whole // "#123" is searched as plain text
+      tags.push(name.toLowerCase())
+      return ' '
+    })
+    .replace(/\s+/g, ' ')
+    .trim()
+  return { tags, text }
+}
+
+export function matchesSearch(note: Note, query: string): boolean {
+  const { tags, text } = parseQuery(query)
+  if (text && !note.body.toLowerCase().includes(text.toLowerCase())) return false
+  if (!tags.length) return true
+  const mine = noteTags(note).map((t) => t.toLowerCase())
+  return tags.every((q) => mine.some((t) => t.startsWith(q)))
+}
+
+const FULL_TAG = new RegExp(String.raw`^${TAG_BODY}$`, 'u')
+
+/** Normalize user input for a tag name ("#Work/ x" → null, "#work/x/" → "work/x"). */
+export function cleanTagName(input: string): string | null {
+  const name = input.trim().replace(/^#+/, '').replace(/\/+$/, '')
+  return FULL_TAG.test(name) && isTagName(name) ? name : null
+}
+
+/**
+ * Rename `from` (and everything nested under it) to `to` in a note body, leaving code untouched.
+ * Renaming onto an existing tag merges the two. Returns the body unchanged if nothing matched.
+ */
+export function renameTagInBody(body: string, from: string, to: string): string {
+  const f = from.toLowerCase()
+  const rename = (text: string) =>
+    text.replace(tagRegex(), (whole: string, name: string) => {
+      const l = name.toLowerCase()
+      if (l === f) return `#${to}`
+      if (l.startsWith(`${f}/`)) return `#${to}${name.slice(from.length)}`
+      return whole
+    })
+  let fence: string | null = null
+  return body
+    .split('\n')
+    .map((line) => {
+      const m = /^\s{0,3}(`{3,}|~{3,})/.exec(line)
+      if (fence) {
+        if (m && m[1][0] === fence[0] && m[1].length >= fence.length) fence = null
+        return line
+      }
+      if (m) {
+        fence = m[1]
+        return line
+      }
+      // odd segments of a split on code spans are code — keep them
+      return line
+        .split(/(`+[^`]*?`+)/)
+        .map((seg, i) => (i % 2 ? seg : rename(seg)))
+        .join('')
+    })
+    .join('\n')
+}
+
+/** All distinct tags across notes, most used first — for autocompletion. */
+export function allTags(notes: Iterable<Note>): { name: string; count: number }[] {
+  const counts = new Map<string, { name: string; count: number }>()
+  for (const n of notes) {
+    for (const t of noteTags(n)) {
+      const e = counts.get(t.toLowerCase())
+      if (e) e.count++
+      else counts.set(t.toLowerCase(), { name: t, count: 1 })
+    }
+  }
+  return [...counts.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+}

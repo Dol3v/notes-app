@@ -62,3 +62,16 @@ export function useAutoLock(session: Session) {
     }
   }, [session])
 }
+
+/** Live result of a CSS media query. */
+export function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => matchMedia(query).matches)
+  useEffect(() => {
+    const mq = matchMedia(query)
+    const on = () => setMatches(mq.matches)
+    mq.addEventListener('change', on)
+    on()
+    return () => mq.removeEventListener('change', on)
+  }, [query])
+  return matches
+}

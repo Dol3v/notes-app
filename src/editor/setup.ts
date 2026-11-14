@@ -7,7 +7,7 @@ import { tags as t } from '@lezer/highlight'
 import type { Direction } from '../lib/vault'
 import { BOLD, ITALIC, STRIKE, insertLink, toggleWrap } from './commands'
 import { directionExtension } from './direction'
-import { tagHighlight } from './tags'
+import { tagCompletion, tagHighlight } from './tags'
 
 /**
  * Formatting shortcuts. High precedence: the default keymap binds Mod-i to "select parent syntax".
@@ -44,13 +44,23 @@ const theme = EditorView.theme({
   '.cm-content': { padding: '16px 0 40vh', caretColor: 'var(--accent)' },
   '.cm-line': { padding: '0 18px' },
   '.cm-placeholder': { color: 'var(--muted)' },
+  '.cm-tooltip': { background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul': { fontFamily: 'var(--font)', maxHeight: '14em' },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul > li': { padding: '4px 10px', color: 'var(--accent)' },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': { background: 'var(--active)', color: 'var(--accent)' },
+  '.cm-completionDetail': { color: 'var(--muted)', fontStyle: 'normal', marginInlineStart: '0.8em' },
+  '.cm-completionMatchedText': { textDecoration: 'none', fontWeight: '700' },
   '.cm-tag': { color: 'var(--accent)', background: 'var(--tag-bg)', borderRadius: '4px' },
   '.cm-cursor': { borderLeftColor: 'var(--accent)', borderLeftWidth: '2px' },
 })
 
 export const directionCompartment = new Compartment()
 
-export function editorExtensions(direction: Direction, onChange: (doc: string) => void): Extension[] {
+export function editorExtensions(
+  direction: Direction,
+  onChange: (doc: string) => void,
+  getTags: () => { name: string; count: number }[],
+): Extension[] {
   return [
     history(),
     markdown({ base: markdownLanguage }), // includes Enter-continues-list / smart Backspace keymap
@@ -58,6 +68,7 @@ export function editorExtensions(direction: Direction, onChange: (doc: string) =
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
     syntaxHighlighting(highlight),
     tagHighlight,
+    tagCompletion(getTags),
     EditorView.lineWrapping,
     theme,
     placeholder('Start writing…  ·  התחל לכתוב…'),

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { Session } from '../session'
-import { useAutoLock, useSession } from './hooks'
+import { useAutoLock, useMediaQuery, useSession } from './hooks'
+import { IconSidebar } from './icons'
 import { NoteList } from './NoteList'
 import { NoteView } from './NoteView'
 import { Settings } from './Settings'
+import { TagTree } from './TagTree'
 
 type Route = { screen: 'list' } | { screen: 'note'; id: string } | { screen: 'settings' }
 
@@ -12,6 +14,9 @@ export function Main({ session }: { session: Session }) {
   useAutoLock(session)
   const [route, setRoute] = useState<Route>({ screen: 'list' })
   const [tag, setTag] = useState<string | null>(null)
+  const wide = useMediaQuery('(min-width: 820px)')
+  const paneOpen = wide && session.prefs.tagPaneOpen
+  const togglePane = () => void session.updatePrefs({ tagPaneOpen: !session.prefs.tagPaneOpen })
 
   // Hook into browser history so Android's back button/gesture returns to the list.
   useEffect(() => {
@@ -40,10 +45,26 @@ export function Main({ session }: { session: Session }) {
     prevOpen.current = openId
   }, [openId])
 
+  // Ctrl+Shift+F (⌘⇧F): jump to the note search. Plain Ctrl+F stays the browser's find-in-page.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.altKey || e.code !== 'KeyF') return
+      e.preventDefault()
+      if (!matchMedia('(min-width: 820px)').matches && history.state?.screen && history.state.screen !== 'list') back()
+      setTimeout(() => {
+        const input = document.getElementById('note-search') as HTMLInputElement | null
+        input?.focus()
+        input?.select()
+      }, 0)
+    }
+    document.addEventListener('keydown', onKey, { capture: true })
+    return () => document.removeEventListener('keydown', onKey, { capture: true })
+  }, [])
+
   /** Tag clicked in a note: filter the list; on a phone, also go back to it. */
   const openTag = (t: string) => {
     setTag(t)
-    if (!matchMedia('(min-width: 820px)').matches) back()
+    if (!wide) back()
   }
 
   const note = session.note(openId)
@@ -61,6 +82,19 @@ export function Main({ session }: { session: Session }) {
 
   return (
     <div class={`app ${showDetail ? 'show-detail' : ''}`} style={{ '--note-font-size': `${session.prefs.fontSize}px` }}>
+      {paneOpen && (
+        <aside class="tag-pane" aria-label="Tags">
+          <header class="bar">
+            <h2 class="tag-pane-title">Tags</h2>
+            <button class="icon-btn" onClick={togglePane} aria-label="Hide tag sidebar" title="Hide tag sidebar">
+              <IconSidebar />
+            </button>
+          </header>
+          <nav class="tag-pane-body">
+            <TagTree session={session} tag={tag} onTag={setTag} />
+          </nav>
+        </aside>
+      )}
       <aside class="sidebar">
         <NoteList
           session={session}
@@ -72,6 +106,7 @@ export function Main({ session }: { session: Session }) {
           onSettings={() => navigate({ screen: 'settings' })}
           tag={tag}
           onTag={setTag}
+          tagPane={wide ? { open: paneOpen, toggle: togglePane } : undefined}
         />
       </aside>
       <main class="detail">{detail}</main>

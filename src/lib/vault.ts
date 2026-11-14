@@ -23,6 +23,8 @@ export interface Note {
   updated: number
   /** set on the local copy kept when the same note was edited on two devices */
   conflict?: boolean
+  /** shown at the top of the list; synced with the note (older app versions keep the field as-is) */
+  pinned?: boolean
 }
 
 export interface GitHubConfig {
@@ -40,7 +42,12 @@ export interface Prefs {
   desktopBackgroundLockSeconds: number
   direction: Direction
   fontSize: number
+  /** phones/tablets */
   openMode: 'preview' | 'edit'
+  /** computers */
+  desktopOpenMode: 'preview' | 'edit'
+  /** desktop: tag sidebar expanded */
+  tagPaneOpen: boolean
 }
 
 /** Device-local settings. Stored encrypted with the DEK; never synced. */
@@ -59,6 +66,8 @@ export const DEFAULT_PREFS: Prefs = {
   direction: 'auto',
   fontSize: 17,
   openMode: 'preview',
+  desktopOpenMode: 'edit',
+  tagPaneOpen: true,
 }
 
 export const VAULT_PATH = 'vault.json'

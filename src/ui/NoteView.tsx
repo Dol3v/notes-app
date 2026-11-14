@@ -5,10 +5,11 @@ import { BOLD, ITALIC, STRIKE, cycleHeading, insertLink, toggleLinePrefix, toggl
 import { detectDir } from '../lib/direction'
 import { toggleTaskLine } from '../lib/markdown'
 import { formatDate, noteTitle } from '../lib/notes'
+import { allTags } from '../lib/tags'
 import type { Note } from '../lib/vault'
 import type { Session } from '../session'
 import { Editor } from './Editor'
-import { IconBack, IconEdit, IconEye, IconTrash } from './icons'
+import { IconBack, IconEdit, IconEye, IconPin, IconTrash } from './icons'
 import { Preview } from './Preview'
 
 interface Props {
@@ -23,7 +24,7 @@ const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'
 export function NoteView({ session, note, onBack, onTag }: Props) {
   const prefs = session.prefs
   const isNew = note.body.trim() === '' || session.isFresh(note.id)
-  const [mode, setMode] = useState<'edit' | 'preview'>(isNew ? 'edit' : prefs.openMode)
+  const [mode, setMode] = useState<'edit' | 'preview'>(isNew ? 'edit' : session.openMode)
   const [focusOnEdit, setFocusOnEdit] = useState(isNew)
   const viewRef = useRef<EditorView | null>(null)
 
@@ -53,6 +54,15 @@ export function NoteView({ session, note, onBack, onTag }: Props) {
           </span>
         </div>
         <button
+          class={`icon-btn pin-btn ${note.pinned ? 'on' : ''}`}
+          onClick={() => session.togglePin(note.id)}
+          aria-label={note.pinned ? 'Unpin' : 'Pin to top'}
+          aria-pressed={!!note.pinned}
+          title={note.pinned ? 'Unpin' : 'Pin to top'}
+        >
+          <IconPin filled={!!note.pinned} />
+        </button>
+        <button
           class="icon-btn"
           onClick={() => (mode === 'edit' ? setMode('preview') : toEdit())}
           aria-label={mode === 'edit' ? 'Preview' : 'Edit'}
@@ -73,6 +83,7 @@ export function NoteView({ session, note, onBack, onTag }: Props) {
             direction={prefs.direction}
             autoFocus={focusOnEdit}
             onChange={(body) => session.updateBody(note.id, body)}
+            getTags={() => allTags(session.vault.notes.values())}
             viewRef={viewRef}
           />
         ) : (

@@ -69,3 +69,15 @@ export const IconSearch = () => (
     <path d="M21 21l-4.3-4.3" />
   </Svg>
 )
+export const IconPin = ({ filled = false, size = 22 }: { filled?: boolean; size?: number }) => (
+  <Svg size={size}>
+    <path d="M9 3h6l-1 6 4 3v2H6v-2l4-3z" fill={filled ? 'currentColor' : 'none'} />
+    <path d="M12 14v7" />
+  </Svg>
+)
+export const IconSidebar = () => (
+  <Svg>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M9 4v16" />
+  </Svg>
+)

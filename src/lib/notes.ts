@@ -1,4 +1,4 @@
-import { isTagOnlyLine } from './tags'
+import { isTagOnlyLine, tagRegex } from './tags'
 import type { Note } from './vault'
 
 function cleanLine(line: string): string {
@@ -11,6 +11,8 @@ function cleanLine(line: string): string {
     .trim()
 }
 
+const withoutTags = (t: string) => t.replace(tagRegex(), '').replace(/s{2,}/g, ' ').trim()
+
 export function noteTitle(note: Note): string {
   let tagLine = ''
   for (const line of note.body.split('\n')) {
@@ -20,7 +22,8 @@ export function noteTitle(note: Note): string {
       tagLine ||= t // a "#work #ideas" line is metadata, not a title — unless it's all there is
       continue
     }
-    return t.slice(0, 100)
+    // tags are shown as chips next to the title — leave them out of the title itself
+    return (withoutTags(t) || t).slice(0, 100)
   }
   return tagLine.slice(0, 100) || 'Untitled'
 }
@@ -32,17 +35,12 @@ export function noteSnippet(note: Note): string {
     .filter((l) => !isTagOnlyLine(l))
     .map(cleanLine)
     .filter(Boolean)
-  if (lines[0]?.slice(0, 100) === title) lines.shift()
+  if (lines[0] && (withoutTags(lines[0]) || lines[0]).slice(0, 100) === title) lines.shift()
   return lines.join(' · ').slice(0, 140)
 }
 
 export function sortNotes(notes: Iterable<Note>): Note[] {
-  return [...notes].sort((a, b) => b.updated - a.updated)
-}
-
-export function matchesQuery(note: Note, query: string): boolean {
-  const q = query.trim().toLowerCase()
-  return !q || note.body.toLowerCase().includes(q)
+  return [...notes].sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || b.updated - a.updated)
 }
 
 export function formatDate(ts: number): string {

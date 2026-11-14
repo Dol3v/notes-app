@@ -1,5 +1,6 @@
 import { GitHubClient } from './lib/github'
 import { sortNotes } from './lib/notes'
+import { renameTagInBody } from './lib/tags'
 import { type SyncReport, runSync } from './lib/sync'
 import { type GitHubConfig, type Note, type Prefs, type Vault, notePath } from './lib/vault'
 
@@ -46,6 +47,9 @@ export class Session {
   /** Background-lock delay for this kind of device, in seconds; -1 = only the inactivity timer. */
   get backgroundLockSeconds(): number {
     return isMobileDevice() ? this.prefs.backgroundLockSeconds : this.prefs.desktopBackgroundLockSeconds
+  }
+  get openMode(): 'edit' | 'preview' {
+    return isMobileDevice() ? this.prefs.openMode : this.prefs.desktopOpenMode
   }
   get notes(): Note[] {
     return sortNotes(this.vault.notes.values())
@@ -108,6 +112,37 @@ export class Session {
   async flush() {
     await Promise.all([...this.saveTimers.keys()].map((id) => this.save(id)))
     await Promise.all(this.savePromises)
+  }
+
+  /** Pinning doesn't count as an edit: the note keeps its place among the unpinned by date. */
+  togglePin(id: string) {
+    const note = this.vault.notes.get(id)
+    if (!note) return
+    if (note.pinned) delete note.pinned
+    else note.pinned = true
+    this.fresh.delete(id)
+    void this.save(id)
+    this.emit()
+  }
+
+  /**
+   * Rename (or merge into an existing) tag across all notes. Edited notes are replaced by new
+   * objects, so an open editor reloads their text instead of overwriting it on the next keystroke.
+   * Returns the number of notes changed.
+   */
+  async renameTag(from: string, to: string): Promise<number> {
+    await this.flush()
+    let changed = 0
+    for (const note of [...this.vault.notes.values()]) {
+      const body = renameTagInBody(note.body, from, to)
+      if (body === note.body) continue
+      this.vault.notes.set(note.id, { ...note, body, updated: Date.now() })
+      this.fresh.delete(note.id)
+      await this.save(note.id)
+      changed++
+    }
+    this.emit()
+    return changed
   }
 
   async deleteNote(id: string) {

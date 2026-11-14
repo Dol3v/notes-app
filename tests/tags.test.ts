@@ -61,3 +61,49 @@ describe('tags', () => {
     expect(html).not.toContain('data-tag="d"')
   })
 })
+
+describe('search', () => {
+  it('combines #tag prefixes with free text', async () => {
+    const { matchesSearch } = await import('../src/lib/tags')
+    const n = note('Meeting notes #work/meetings\nissue #123 discussed')
+    expect(matchesSearch(n, '#wo')).toBe(true)
+    expect(matchesSearch(n, '#work/meet notes')).toBe(true)
+    expect(matchesSearch(n, '#home')).toBe(false)
+    expect(matchesSearch(n, '#work missing')).toBe(false)
+    expect(matchesSearch(n, '#123')).toBe(true)
+    expect(matchesSearch(n, '')).toBe(true)
+  })
+})
+
+describe('tag management', () => {
+  it('renames a tag and its children, merging and leaving code alone', async () => {
+    const { renameTagInBody } = await import('../src/lib/tags')
+    const body = '#work and #Work/x, #workshop\n`#work` stays\n```\n#work\n```\nend #work/y/z'
+    expect(renameTagInBody(body, 'work', 'job')).toBe(
+      '#job and #job/x, #workshop\n`#work` stays\n```\n#work\n```\nend #job/y/z',
+    )
+    expect(renameTagInBody('#a #b', 'a', 'b')).toBe('#b #b') // merge
+    expect(renameTagInBody('nothing here', 'a', 'b')).toBe('nothing here')
+  })
+  it('validates new tag names', async () => {
+    const { cleanTagName } = await import('../src/lib/tags')
+    expect(cleanTagName(' #work/x/ ')).toBe('work/x')
+    expect(cleanTagName('עבודה')).toBe('עבודה')
+    expect(cleanTagName('two words')).toBeNull()
+    expect(cleanTagName('123')).toBeNull()
+    expect(cleanTagName('a//b')).toBeNull()
+  })
+  it('lists tags by use for autocompletion', async () => {
+    const { allTags } = await import('../src/lib/tags')
+    expect(allTags([note('#b #a'), note('#B')])).toEqual([
+      { name: 'b', count: 2 },
+      { name: 'a', count: 1 },
+    ])
+  })
+  it('sorts pinned notes first', async () => {
+    const { sortNotes } = await import('../src/lib/notes')
+    const old = { ...note('old'), updated: 1, pinned: true }
+    const recent = { ...note('recent'), updated: 9 }
+    expect(sortNotes([recent, old]).map((n) => n.body)).toEqual(['old', 'recent'])
+  })
+})

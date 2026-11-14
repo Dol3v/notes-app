@@ -11,8 +11,6 @@ export function toggleWrap(view: EditorView, marker: string): boolean {
   view.dispatch(
     state.changeByRange((range) => {
       const text = state.sliceDoc(range.from, range.to)
-      const before = state.sliceDoc(range.from - n, range.from)
-      const after = state.sliceDoc(range.to, range.to + n)
       // the selection itself includes the markers ("**bold**" selected) → strip them
       if (text.length >= 2 * n && text.startsWith(marker) && text.endsWith(marker)) {
         return {
@@ -20,13 +18,15 @@ export function toggleWrap(view: EditorView, marker: string): boolean {
           range: EditorSelection.range(range.from, range.to - 2 * n),
         }
       }
-      if (before === marker && after === marker) {
+      // already wrapped, possibly inside other formatting: "**~~_word_~~**" + Ctrl+B → "~~_word_~~"
+      const layer = findLayer(state.sliceDoc(Math.max(0, range.from - 16), range.from), state.sliceDoc(range.to, range.to + 16), marker)
+      if (layer) {
         return {
           changes: [
-            { from: range.from - marker.length, to: range.from },
-            { from: range.to, to: range.to + marker.length },
+            { from: range.from - layer.left - n, to: range.from - layer.left },
+            { from: range.to + layer.right, to: range.to + layer.right + n },
           ],
-          range: EditorSelection.range(range.from - marker.length, range.to - marker.length),
+          range: EditorSelection.range(range.from - n, range.to - n),
         }
       }
       return {
@@ -37,6 +37,34 @@ export function toggleWrap(view: EditorView, marker: string): boolean {
   )
   view.focus()
   return true
+}
+
+const MARKERS = ['**', '~~', '_', '*', '`']
+
+/** Split a run of formatting markers into layers, innermost first. */
+function layers(run: string, fromEnd: boolean): string[] {
+  const out: string[] = []
+  while (run) {
+    const m = MARKERS.find((k) => (fromEnd ? run.endsWith(k) : run.startsWith(k)))
+    if (!m) break
+    out.push(m)
+    run = fromEnd ? run.slice(0, -m.length) : run.slice(m.length)
+  }
+  return out
+}
+
+/** Where `marker` wraps the selection at the same nesting depth on both sides (offsets = chars of inner layers). */
+function findLayer(before: string, after: string, marker: string): { left: number; right: number } | null {
+  const l = layers(/[*_~`]*$/.exec(before)![0], true)
+  const r = layers(/^[*_~`]*/.exec(after)![0], false)
+  let left = 0
+  let right = 0
+  for (let i = 0; i < Math.min(l.length, r.length); i++) {
+    if (l[i] === marker && r[i] === marker) return { left, right }
+    left += l[i].length
+    right += r[i].length
+  }
+  return null
 }
 
 export const BOLD = '**'
