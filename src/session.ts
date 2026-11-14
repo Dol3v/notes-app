@@ -5,6 +5,11 @@ import { type GitHubConfig, type Note, type Prefs, type Vault, notePath } from '
 
 export type SyncStatus = 'off' | 'synced' | 'pending' | 'syncing' | 'error'
 
+/** Phones and tablets get the stricter background-lock setting. */
+export const isMobileDevice = () =>
+  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+  (navigator.maxTouchPoints > 1 && !matchMedia('(any-pointer: fine)').matches)
+
 const SAVE_DELAY = 700
 const SYNC_DELAY = 30_000
 
@@ -20,6 +25,8 @@ export class Session {
   private syncing?: Promise<void>
   private toastTimer?: ReturnType<typeof setTimeout>
   private locking = false
+  /** notes created in this session that haven't been edited yet → their starting text */
+  private fresh = new Map<string, string>()
 
   constructor(public vault: Vault) {
     this.status = vault.settings.github ? 'synced' : 'off'
@@ -35,6 +42,10 @@ export class Session {
 
   get prefs(): Prefs {
     return this.vault.settings.prefs
+  }
+  /** Background-lock delay for this kind of device, in seconds; -1 = only the inactivity timer. */
+  get backgroundLockSeconds(): number {
+    return isMobileDevice() ? this.prefs.backgroundLockSeconds : this.prefs.desktopBackgroundLockSeconds
   }
   get notes(): Note[] {
     return sortNotes(this.vault.notes.values())
@@ -55,16 +66,22 @@ export class Session {
 
   // ---------- notes ----------
 
-  createNote(): Note {
-    const note = this.vault.newNote()
-    this.vault.notes.set(note.id, note) // not written until it has content
+  createNote(body = ''): Note {
+    const note = this.vault.newNote(body)
+    this.vault.notes.set(note.id, note) // not written until it is edited
+    this.fresh.set(note.id, body)
     this.emit()
     return note
+  }
+
+  isFresh(id: string) {
+    return this.fresh.has(id)
   }
 
   updateBody(id: string, body: string) {
     const note = this.vault.notes.get(id)
     if (!note || note.body === body) return
+    this.fresh.delete(id)
     note.body = body
     note.updated = Date.now()
     delete note.conflict
@@ -102,10 +119,13 @@ export class Session {
     this.emit()
   }
 
-  /** Called when leaving a note: blank notes are thrown away instead of cluttering the list. */
+  /** Called when leaving a note: blank or untouched new notes are thrown away instead of cluttering the list. */
   async discardIfEmpty(id: string) {
     const note = this.vault.notes.get(id)
-    if (note && note.body.trim() === '') await this.deleteNote(id)
+    if (!note) return
+    const untouched = this.fresh.get(id) === note.body
+    this.fresh.delete(id)
+    if (note.body.trim() === '' || untouched) await this.deleteNote(id)
   }
 
   // ---------- sync ----------

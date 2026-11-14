@@ -4,7 +4,7 @@ import { GitHubClient } from '../lib/github'
 import { timeAgo } from '../lib/notes'
 import { wipeDevice } from '../lib/store'
 import type { Direction } from '../lib/vault'
-import type { Session } from '../session'
+import { type Session, isMobileDevice } from '../session'
 import { GitHubFields, parseRepo } from './GitHubFields'
 import { IconBack } from './icons'
 import { MIN_PASSWORD, passwordStrength } from './password'
@@ -163,6 +163,8 @@ function SecuritySection({ session }: { session: Session }) {
   }
 
   const strength = passwordStrength(newPw)
+  const mobile = isMobileDevice()
+  const bgKey = mobile ? 'backgroundLockSeconds' : 'desktopBackgroundLockSeconds'
   return (
     <section>
       <h2>Security</h2>
@@ -175,15 +177,17 @@ function SecuritySection({ session }: { session: Session }) {
         </select>
       </label>
       <label class="setting">
-        <span>Lock when the app is in the background</span>
-        <select
-          value={p.backgroundLockSeconds}
-          onChange={(e) => session.updatePrefs({ backgroundLockSeconds: Number((e.target as HTMLSelectElement).value) })}
-        >
+        <span>
+          {mobile ? 'Lock when the app is in the background' : 'Lock when this tab/window is hidden'}
+          <br />
+          <span class="subtle small">{mobile ? 'Setting for phones & tablets' : 'Setting for computers'}</span>
+        </span>
+        <select value={p[bgKey]} onChange={(e) => session.updatePrefs({ [bgKey]: Number((e.target as HTMLSelectElement).value) })}>
           <option value={0}>Immediately</option>
           <option value={30}>After 30 s</option>
           <option value={60}>After 1 min</option>
           <option value={300}>After 5 min</option>
+          <option value={900}>After 15 min</option>
           <option value={-1}>Only by inactivity timer</option>
         </select>
       </label>

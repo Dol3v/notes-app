@@ -26,9 +26,10 @@ interface Props {
   direction: Direction
   onToggleTask: (line: number) => void
   onEmptyClick: () => void
+  onTag: (tag: string) => void
 }
 
-export function Preview({ body, direction, onToggleTask, onEmptyClick }: Props) {
+export function Preview({ body, direction, onToggleTask, onEmptyClick, onTag }: Props) {
   const ref = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
@@ -45,6 +46,8 @@ export function Preview({ body, direction, onToggleTask, onEmptyClick }: Props) 
     if (t instanceof HTMLInputElement && t.classList.contains('task')) {
       e.preventDefault()
       onToggleTask(Number(t.dataset.line))
+    } else if (t.classList.contains('tag') && t.dataset.tag) {
+      onTag(t.dataset.tag)
     }
   }
 

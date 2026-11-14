@@ -11,6 +11,7 @@ export function Main({ session }: { session: Session }) {
   useSession(session)
   useAutoLock(session)
   const [route, setRoute] = useState<Route>({ screen: 'list' })
+  const [tag, setTag] = useState<string | null>(null)
 
   // Hook into browser history so Android's back button/gesture returns to the list.
   useEffect(() => {
@@ -39,10 +40,16 @@ export function Main({ session }: { session: Session }) {
     prevOpen.current = openId
   }, [openId])
 
+  /** Tag clicked in a note: filter the list; on a phone, also go back to it. */
+  const openTag = (t: string) => {
+    setTag(t)
+    if (!matchMedia('(min-width: 820px)').matches) back()
+  }
+
   const note = session.note(openId)
   const detail =
     route.screen === 'note' && note ? (
-      <NoteView key={note.id} session={session} note={note} onBack={back} />
+      <NoteView key={note.id} session={session} note={note} onBack={back} onTag={openTag} />
     ) : route.screen === 'settings' ? (
       <Settings session={session} onBack={back} />
     ) : (
@@ -59,8 +66,12 @@ export function Main({ session }: { session: Session }) {
           session={session}
           activeId={openId}
           onOpen={(id) => navigate({ screen: 'note', id })}
-          onNew={() => navigate({ screen: 'note', id: session.createNote().id })}
+          // with a tag filter on, start the note with that tag so it shows up in the filtered list
+          onNew={() => navigate({ screen: 'note', id: session.createNote(tag ? `#${tag}
+` : '').id })}
           onSettings={() => navigate({ screen: 'settings' })}
+          tag={tag}
+          onTag={setTag}
         />
       </aside>
       <main class="detail">{detail}</main>

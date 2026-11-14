@@ -1,3 +1,4 @@
+import { isTagOnlyLine } from './tags'
 import type { Note } from './vault'
 
 function cleanLine(line: string): string {
@@ -11,16 +12,28 @@ function cleanLine(line: string): string {
 }
 
 export function noteTitle(note: Note): string {
+  let tagLine = ''
   for (const line of note.body.split('\n')) {
     const t = cleanLine(line)
-    if (t) return t.slice(0, 100)
+    if (!t) continue
+    if (isTagOnlyLine(line)) {
+      tagLine ||= t // a "#work #ideas" line is metadata, not a title — unless it's all there is
+      continue
+    }
+    return t.slice(0, 100)
   }
-  return 'Untitled'
+  return tagLine.slice(0, 100) || 'Untitled'
 }
 
 export function noteSnippet(note: Note): string {
-  const lines = note.body.split('\n').map(cleanLine).filter(Boolean)
-  return lines.slice(1).join(' · ').slice(0, 140)
+  const title = noteTitle(note)
+  const lines = note.body
+    .split('\n')
+    .filter((l) => !isTagOnlyLine(l))
+    .map(cleanLine)
+    .filter(Boolean)
+  if (lines[0]?.slice(0, 100) === title) lines.shift()
+  return lines.join(' · ').slice(0, 140)
 }
 
 export function sortNotes(notes: Iterable<Note>): Note[] {

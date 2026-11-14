@@ -1,7 +1,7 @@
 import { indentLess, indentMore, redo, undo } from '@codemirror/commands'
 import type { EditorView } from '@codemirror/view'
 import { useRef, useState } from 'preact/hooks'
-import { cycleHeading, insertLink, toggleLinePrefix, toggleWrap } from '../editor/commands'
+import { BOLD, ITALIC, STRIKE, cycleHeading, insertLink, toggleLinePrefix, toggleWrap } from '../editor/commands'
 import { detectDir } from '../lib/direction'
 import { toggleTaskLine } from '../lib/markdown'
 import { formatDate, noteTitle } from '../lib/notes'
@@ -15,12 +15,16 @@ interface Props {
   session: Session
   note: Note
   onBack: () => void
+  onTag: (tag: string) => void
 }
 
-export function NoteView({ session, note, onBack }: Props) {
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'
+
+export function NoteView({ session, note, onBack, onTag }: Props) {
   const prefs = session.prefs
-  const [mode, setMode] = useState<'edit' | 'preview'>(note.body.trim() === '' ? 'edit' : prefs.openMode)
-  const [focusOnEdit, setFocusOnEdit] = useState(note.body.trim() === '')
+  const isNew = note.body.trim() === '' || session.isFresh(note.id)
+  const [mode, setMode] = useState<'edit' | 'preview'>(isNew ? 'edit' : prefs.openMode)
+  const [focusOnEdit, setFocusOnEdit] = useState(isNew)
   const viewRef = useRef<EditorView | null>(null)
 
   const toEdit = () => {
@@ -77,6 +81,7 @@ export function NoteView({ session, note, onBack }: Props) {
             direction={prefs.direction}
             onToggleTask={(line) => session.updateBody(note.id, toggleTaskLine(note.body, line))}
             onEmptyClick={toEdit}
+            onTag={onTag}
           />
         )}
       </div>
@@ -103,14 +108,15 @@ function Toolbar({ viewRef }: { viewRef: { current: EditorView | null } }) {
   return (
     <div class="toolbar" role="toolbar">
       {btn('H', 'Heading', cycleHeading, 'tb-bold')}
-      {btn('B', 'Bold', (v) => toggleWrap(v, '**'), 'tb-bold')}
-      {btn('I', 'Italic', (v) => toggleWrap(v, '_'), 'tb-italic')}
+      {btn('B', `Bold (${MOD}+B)`, (v) => toggleWrap(v, BOLD), 'tb-bold')}
+      {btn('I', `Italic (${MOD}+I)`, (v) => toggleWrap(v, ITALIC), 'tb-italic')}
+      {btn('S', `Strikethrough (${MOD}+Shift+X)`, (v) => toggleWrap(v, STRIKE), 'tb-strike')}
       {btn('☐', 'Checklist', (v) => toggleLinePrefix(v, '- [ ] '))}
       {btn('•', 'Bullet list', (v) => toggleLinePrefix(v, '- '))}
       {btn('1.', 'Numbered list', (v) => toggleLinePrefix(v, '1. '))}
       {btn('❝', 'Quote', (v) => toggleLinePrefix(v, '> '))}
       {btn('</>', 'Code', (v) => toggleWrap(v, '`'))}
-      {btn('🔗', 'Link', insertLink)}
+      {btn('🔗', `Link (${MOD}+K)`, insertLink)}
       {btn('⇤', 'Outdent', indentLess)}
       {btn('⇥', 'Indent', indentMore)}
       {btn('↶', 'Undo', undo)}

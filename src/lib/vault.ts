@@ -34,8 +34,10 @@ export interface GitHubConfig {
 
 export interface Prefs {
   autoLockMinutes: number
-  /** seconds in background before locking; -1 = never */
+  /** phones/tablets: seconds in background before locking; -1 = only by inactivity */
   backgroundLockSeconds: number
+  /** computers: same, separate because switching tabs/windows is routine there */
+  desktopBackgroundLockSeconds: number
   direction: Direction
   fontSize: number
   openMode: 'preview' | 'edit'
@@ -53,6 +55,7 @@ export interface LocalSettings {
 export const DEFAULT_PREFS: Prefs = {
   autoLockMinutes: 10,
   backgroundLockSeconds: 60,
+  desktopBackgroundLockSeconds: -1,
   direction: 'auto',
   fontSize: 17,
   openMode: 'preview',

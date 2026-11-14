@@ -1,14 +1,25 @@
 import { EditorSelection } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
 
-/** Wrap/unwrap the selection in a marker like ** or `. With no selection, insert a pair. */
-export function toggleWrap(view: EditorView, marker: string) {
+/**
+ * Wrap/unwrap the selection in a marker like ** or `. With no selection, insert a pair.
+ * Returns true so it can be bound directly as a keyboard command.
+ */
+export function toggleWrap(view: EditorView, marker: string): boolean {
   const { state } = view
+  const n = marker.length
   view.dispatch(
     state.changeByRange((range) => {
       const text = state.sliceDoc(range.from, range.to)
-      const before = state.sliceDoc(range.from - marker.length, range.from)
-      const after = state.sliceDoc(range.to, range.to + marker.length)
+      const before = state.sliceDoc(range.from - n, range.from)
+      const after = state.sliceDoc(range.to, range.to + n)
+      // the selection itself includes the markers ("**bold**" selected) → strip them
+      if (text.length >= 2 * n && text.startsWith(marker) && text.endsWith(marker)) {
+        return {
+          changes: { from: range.from, to: range.to, insert: text.slice(n, -n) },
+          range: EditorSelection.range(range.from, range.to - 2 * n),
+        }
+      }
       if (before === marker && after === marker) {
         return {
           changes: [
@@ -25,7 +36,12 @@ export function toggleWrap(view: EditorView, marker: string) {
     }),
   )
   view.focus()
+  return true
 }
+
+export const BOLD = '**'
+export const ITALIC = '_'
+export const STRIKE = '~~'
 
 const PREFIX_RE = /^(\s*)(#{1,6}\s+|>\s?|[-*+]\s+\[[ xX]\]\s+|[-*+]\s+|\d+[.)]\s+)?/
 

@@ -1,11 +1,26 @@
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
-import { Compartment, type Extension } from '@codemirror/state'
+import { Compartment, type Extension, Prec } from '@codemirror/state'
 import { EditorView, keymap, placeholder } from '@codemirror/view'
 import { tags as t } from '@lezer/highlight'
 import type { Direction } from '../lib/vault'
+import { BOLD, ITALIC, STRIKE, insertLink, toggleWrap } from './commands'
 import { directionExtension } from './direction'
+import { tagHighlight } from './tags'
+
+/**
+ * Formatting shortcuts. High precedence: the default keymap binds Mod-i to "select parent syntax".
+ * Bindings are by key position as well, so they also work with the Hebrew keyboard layout.
+ */
+export const formattingKeymap = Prec.high(
+  keymap.of([
+    { key: 'Mod-b', run: (v) => toggleWrap(v, BOLD) },
+    { key: 'Mod-i', run: (v) => toggleWrap(v, ITALIC) },
+    { key: 'Mod-Shift-x', run: (v) => toggleWrap(v, STRIKE) },
+    { key: 'Mod-k', run: (v) => (insertLink(v), true) },
+  ]),
+)
 
 const highlight = HighlightStyle.define([
   { tag: t.heading1, fontSize: '1.45em', fontWeight: '700' },
@@ -29,6 +44,7 @@ const theme = EditorView.theme({
   '.cm-content': { padding: '16px 0 40vh', caretColor: 'var(--accent)' },
   '.cm-line': { padding: '0 18px' },
   '.cm-placeholder': { color: 'var(--muted)' },
+  '.cm-tag': { color: 'var(--accent)', background: 'var(--tag-bg)', borderRadius: '4px' },
   '.cm-cursor': { borderLeftColor: 'var(--accent)', borderLeftWidth: '2px' },
 })
 
@@ -38,8 +54,10 @@ export function editorExtensions(direction: Direction, onChange: (doc: string) =
   return [
     history(),
     markdown({ base: markdownLanguage }), // includes Enter-continues-list / smart Backspace keymap
+    formattingKeymap,
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
     syntaxHighlighting(highlight),
+    tagHighlight,
     EditorView.lineWrapping,
     theme,
     placeholder('Start writing…  ·  התחל לכתוב…'),

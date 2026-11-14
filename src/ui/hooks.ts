@@ -16,21 +16,28 @@ export function useAutoLock(session: Session) {
     let idleTimer: ReturnType<typeof setTimeout> | undefined
     let bgTimer: ReturnType<typeof setTimeout> | undefined
     let hiddenAt: number | null = null
+    let lastActivity = Date.now()
+    const idleMs = () => session.prefs.autoLockMinutes * 60_000
 
     const resetIdle = () => {
+      lastActivity = Date.now()
       clearTimeout(idleTimer)
-      idleTimer = setTimeout(() => void session.lock(), session.prefs.autoLockMinutes * 60_000)
+      idleTimer = setTimeout(() => void session.lock(), idleMs())
     }
     const onVisibility = () => {
-      const bg = session.prefs.backgroundLockSeconds
+      const bg = session.backgroundLockSeconds
       if (document.visibilityState === 'hidden') {
         hiddenAt = Date.now()
         void session.syncNow().catch(() => {})
         void session.flush()
+        clearTimeout(bgTimer)
         if (bg >= 0) bgTimer = setTimeout(() => void session.lock(), bg * 1000)
       } else {
         clearTimeout(bgTimer)
-        if (hiddenAt !== null && bg >= 0 && Date.now() - hiddenAt >= bg * 1000) {
+        const now = Date.now()
+        // Timers are throttled in background tabs, so check the clock on return as well.
+        // Time away counts as inactivity: back after an hour → locked, even if "background lock" is off.
+        if ((hiddenAt !== null && bg >= 0 && now - hiddenAt >= bg * 1000) || now - lastActivity >= idleMs()) {
           void session.lock()
         } else {
           resetIdle()
