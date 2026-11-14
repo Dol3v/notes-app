@@ -7,6 +7,7 @@ function cleanLine(line: string): string {
     .replace(/^\s*>\s?/, '')
     .replace(/^\s*([-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?/, '')
     .replace(/[*_`~]+/g, '')
+    .replace(/\[\[([^[\]|\n]+?)(?:\|([^[\]\n]+?))?\]\]/g, (_, target: string, alias?: string) => alias ?? target)
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
     .trim()
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { Session } from '../session'
+import { resolveLink } from '../lib/links'
 import { useAutoLock, useMediaQuery, useSession } from './hooks'
 import { IconSidebar } from './icons'
 import { NoteList } from './NoteList'
@@ -27,8 +28,9 @@ export function Main({ session }: { session: Session }) {
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
-  const navigate = (r: Route) => {
-    if (route.screen === 'list') history.pushState(r, '')
+  /** `push`: add a history entry even from a note, so Back returns to it (following links). */
+  const navigate = (r: Route, push = false) => {
+    if (route.screen === 'list' || push) history.pushState(r, '')
     else history.replaceState(r, '')
     setRoute(r)
   }
@@ -67,10 +69,20 @@ export function Main({ session }: { session: Session }) {
     if (!wide) back()
   }
 
+  /** Follow a [[link]]: open the note with that title, or create it. */
+  const openLink = (target: string) => {
+    const found = resolveLink(target, session.notes)
+    const id = found ? found.id : session.createNote(`# ${target}
+
+`, true).id
+    if (!found) session.showToast(`Created “${target}”`)
+    if (id !== openId) navigate({ screen: 'note', id }, true)
+  }
+
   const note = session.note(openId)
   const detail =
     route.screen === 'note' && note ? (
-      <NoteView key={note.id} session={session} note={note} onBack={back} onTag={openTag} />
+      <NoteView key={note.id} session={session} note={note} onBack={back} onTag={openTag} onLink={openLink} />
     ) : route.screen === 'settings' ? (
       <Settings session={session} onBack={back} />
     ) : (

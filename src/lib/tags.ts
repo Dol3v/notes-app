@@ -18,7 +18,7 @@ export const tagRegex = () => new RegExp(String.raw`${BOUNDARY}#(${TAG_BODY})`, 
 export const isTagName = (name: string) => HAS_LETTER.test(name)
 
 /** Drop fenced code blocks and inline code — `#include` in a snippet is not a tag. */
-function stripCode(body: string): string {
+export function stripCode(body: string): string {
   const out: string[] = []
   let fence: string | null = null
   for (const line of body.split('\n')) {

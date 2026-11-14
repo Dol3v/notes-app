@@ -70,10 +70,15 @@ export class Session {
 
   // ---------- notes ----------
 
-  createNote(body = ''): Note {
+  /**
+   * New notes aren't written until edited, and are dropped if left untouched — unless `keep`
+   * (e.g. created on purpose from a [[link]]), which saves them right away.
+   */
+  createNote(body = '', keep = false): Note {
     const note = this.vault.newNote(body)
-    this.vault.notes.set(note.id, note) // not written until it is edited
-    this.fresh.set(note.id, body)
+    this.vault.notes.set(note.id, note)
+    if (keep) void this.save(note.id)
+    else this.fresh.set(note.id, body)
     this.emit()
     return note
   }

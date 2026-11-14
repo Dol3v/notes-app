@@ -7,7 +7,9 @@ import { tags as t } from '@lezer/highlight'
 import type { Direction } from '../lib/vault'
 import { BOLD, ITALIC, STRIKE, insertLink, toggleWrap } from './commands'
 import { directionExtension } from './direction'
-import { tagCompletion, tagHighlight } from './tags'
+import { autocompletion } from '@codemirror/autocomplete'
+import { type FollowTarget, followOnModClick, linkHighlight, linkSource } from './links'
+import { tagHighlight, tagSource } from './tags'
 
 /**
  * Formatting shortcuts. High precedence: the default keymap binds Mod-i to "select parent syntax".
@@ -50,6 +52,7 @@ const theme = EditorView.theme({
   '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': { background: 'var(--active)', color: 'var(--accent)' },
   '.cm-completionDetail': { color: 'var(--muted)', fontStyle: 'normal', marginInlineStart: '0.8em' },
   '.cm-completionMatchedText': { textDecoration: 'none', fontWeight: '700' },
+  '.cm-wikilink': { color: 'var(--accent)', textDecoration: 'underline', textDecorationColor: 'var(--tag-bg)', textUnderlineOffset: '3px' },
   '.cm-tag': { color: 'var(--accent)', background: 'var(--tag-bg)', borderRadius: '4px' },
   '.cm-cursor': { borderLeftColor: 'var(--accent)', borderLeftWidth: '2px' },
 })
@@ -60,6 +63,8 @@ export function editorExtensions(
   direction: Direction,
   onChange: (doc: string) => void,
   getTags: () => { name: string; count: number }[],
+  getTitles: () => string[],
+  follow: (t: FollowTarget) => void,
 ): Extension[] {
   return [
     history(),
@@ -68,7 +73,9 @@ export function editorExtensions(
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
     syntaxHighlighting(highlight),
     tagHighlight,
-    tagCompletion(getTags),
+    linkHighlight,
+    autocompletion({ override: [tagSource(getTags), linkSource(getTitles)], icons: false }),
+    followOnModClick(follow),
     EditorView.lineWrapping,
     theme,
     placeholder('Start writing…  ·  התחל לכתוב…'),

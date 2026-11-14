@@ -1,8 +1,10 @@
+import { startCompletion } from '@codemirror/autocomplete'
 import { indentLess, indentMore, redo, undo } from '@codemirror/commands'
 import type { EditorView } from '@codemirror/view'
 import { useRef, useState } from 'preact/hooks'
 import { BOLD, ITALIC, STRIKE, cycleHeading, insertLink, toggleLinePrefix, toggleWrap } from '../editor/commands'
 import { detectDir } from '../lib/direction'
+import { backlinks, resolveLink } from '../lib/links'
 import { toggleTaskLine } from '../lib/markdown'
 import { formatDate, noteTitle } from '../lib/notes'
 import { allTags } from '../lib/tags'
@@ -17,13 +19,15 @@ interface Props {
   note: Note
   onBack: () => void
   onTag: (tag: string) => void
+  onLink: (target: string) => void
 }
 
 const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'
 
-export function NoteView({ session, note, onBack, onTag }: Props) {
+export function NoteView({ session, note, onBack, onTag, onLink }: Props) {
   const prefs = session.prefs
-  const isNew = note.body.trim() === '' || session.isFresh(note.id)
+  // empty, untouched, or just a "# Title" (e.g. created from a [[link]]) → start in the editor
+  const isNew = note.body.trim() === '' || session.isFresh(note.id) || /^#{1,6} [^\n]*$/.test(note.body.trim())
   const [mode, setMode] = useState<'edit' | 'preview'>(isNew ? 'edit' : session.openMode)
   const [focusOnEdit, setFocusOnEdit] = useState(isNew)
   const viewRef = useRef<EditorView | null>(null)
@@ -84,6 +88,8 @@ export function NoteView({ session, note, onBack, onTag }: Props) {
             autoFocus={focusOnEdit}
             onChange={(body) => session.updateBody(note.id, body)}
             getTags={() => allTags(session.vault.notes.values())}
+            getTitles={() => session.notes.filter((n) => n.id !== note.id).map(noteTitle)}
+            onFollow={(t) => (t.kind === 'link' ? onLink(t.target) : onTag(t.tag))}
             viewRef={viewRef}
           />
         ) : (
@@ -93,12 +99,42 @@ export function NoteView({ session, note, onBack, onTag }: Props) {
             onToggleTask={(line) => session.updateBody(note.id, toggleTaskLine(note.body, line))}
             onEmptyClick={toEdit}
             onTag={onTag}
-          />
+            linkExists={(t) => !!resolveLink(t, session.notes)}
+            onLink={onLink}
+          >
+            <Backlinks session={session} note={note} onOpen={onLink} />
+          </Preview>
         )}
       </div>
 
       {mode === 'edit' && <Toolbar viewRef={viewRef} />}
     </div>
+  )
+}
+
+/** Insert "[[" and open the note-title suggestions. */
+function linkToNote(v: EditorView) {
+  const pos = v.state.selection.main.head
+  v.dispatch({ changes: { from: pos, insert: '[[' }, selection: { anchor: pos + 2 } })
+  startCompletion(v)
+}
+
+function Backlinks({ session, note, onOpen }: { session: Session; note: Note; onOpen: (title: string) => void }) {
+  const from = backlinks(note, session.notes)
+  if (!from.length) return null
+  return (
+    <aside class="backlinks">
+      <h3>Linked from</h3>
+      <ul>
+        {from.map((n) => (
+          <li key={n.id}>
+            <button class="link-btn" dir="auto" onClick={() => onOpen(noteTitle(n))}>
+              {noteTitle(n)}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </aside>
   )
 }
 
@@ -127,7 +163,8 @@ function Toolbar({ viewRef }: { viewRef: { current: EditorView | null } }) {
       {btn('1.', 'Numbered list', (v) => toggleLinePrefix(v, '1. '))}
       {btn('❝', 'Quote', (v) => toggleLinePrefix(v, '> '))}
       {btn('</>', 'Code', (v) => toggleWrap(v, '`'))}
-      {btn('🔗', `Link (${MOD}+K)`, insertLink)}
+      {btn('[[', 'Link to a note', linkToNote)}
+      {btn('🔗', `Web link (${MOD}+K)`, insertLink)}
       {btn('⇤', 'Outdent', indentLess)}
       {btn('⇥', 'Indent', indentMore)}
       {btn('↶', 'Undo', undo)}

@@ -30,6 +30,23 @@ md.core.ruler.push('task_lists', (state) => {
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 
+// [[Note title|alias]] → <span class="wikilink" data-target="Note title">alias</span>.
+// Resolved (and marked broken if missing) by the Preview, which knows the notes.
+md.inline.ruler.before('link', 'wikilink', (state, silent) => {
+  const src = state.src
+  const start = state.pos
+  if (src.charCodeAt(start) !== 0x5b /* [ */ || src.charCodeAt(start + 1) !== 0x5b) return false
+  const m = /^\[\[([^[\]|\n]+?)(?:\|([^[\]\n]+?))?\]\]/.exec(src.slice(start, state.posMax))
+  if (!m) return false
+  if (!silent) {
+    const target = m[1].trim()
+    const tok = state.push('html_inline', '', 0)
+    tok.content = `<span class="wikilink" role="link" tabindex="0" data-target="${escapeHtml(target)}">${escapeHtml((m[2] ?? m[1]).trim())}</span>`
+  }
+  state.pos += m[0].length
+  return true
+})
+
 md.core.ruler.push('tags', (state) => {
   for (const block of state.tokens) {
     if (block.type !== 'inline' || !block.children) continue

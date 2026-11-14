@@ -2,6 +2,7 @@ import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { useEffect, useRef } from 'preact/hooks'
 import { directionExtension } from '../editor/direction'
+import type { FollowTarget } from '../editor/links'
 import { directionCompartment, editorExtensions } from '../editor/setup'
 import type { Direction } from '../lib/vault'
 
@@ -18,15 +19,23 @@ interface Props {
   onChange: (value: string) => void
   /** existing tags, for autocompletion */
   getTags: () => { name: string; count: number }[]
+  /** note titles, for [[link]] autocompletion */
+  getTitles: () => string[]
+  /** Ctrl+click on a [[link]] or #tag */
+  onFollow: (t: FollowTarget) => void
   viewRef: { current: EditorView | null }
 }
 
-export function Editor({ value, revision, direction, autoFocus, onChange, getTags, viewRef }: Props) {
+export function Editor({ value, revision, direction, autoFocus, onChange, getTags, getTitles, onFollow, viewRef }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const getTagsRef = useRef(getTags)
   getTagsRef.current = getTags
+  const getTitlesRef = useRef(getTitles)
+  getTitlesRef.current = getTitles
+  const onFollowRef = useRef(onFollow)
+  onFollowRef.current = onFollow
 
   useEffect(() => {
     const view = new EditorView({
@@ -37,6 +46,8 @@ export function Editor({ value, revision, direction, autoFocus, onChange, getTag
           direction,
           (doc) => onChangeRef.current(doc),
           () => getTagsRef.current(),
+          () => getTitlesRef.current(),
+          (t) => onFollowRef.current(t),
         ),
       }),
     })
